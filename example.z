@@ -1,3 +1,4 @@
-main () int {
+@main (argc int, argv **char) int {
+    // This is a comment
     return 0;
 }
