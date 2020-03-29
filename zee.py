@@ -12,8 +12,8 @@ class ZeeTokenizer:
     def __init__(self, filename, string):
         self.filename = filename
         self.string = string
-        self.char = 0
-        self.line = 0
+        self.char = 1
+        self.line = 1
         self.index = 0
 
     def tokenize(self):
@@ -102,19 +102,44 @@ def parse_expression(tok_in):
         if token(tok) == ";":
             break
         expr.append(eat_token(tok))
-    return ("expr", expr), tok
+    return expr, tok
 
 
 def parse_statement(tok_in):
     tok = tok_in[:]
-    first = token(tok)
-    if "return" == first:
+    statement = []
+    while token(tok) != ";":
+        statement.append(tok[0])
         eat_token(tok)
-        expr, tok = parse_expression(tok)
-        if eat_token(tok) != ";":
+    eat_token(tok)
+
+    # TODO(ed): Debug this
+    parser_error(tok, statement)
+    if "return" == token(statement):
+        eat_token(statement)
+        expr, statement = parse_expression(statement)
+        if statement:
             parser_error(tok, "Cannot find end of expression")
         return ("return", expr), tok
-    print(tok)
+    elif "=" in statement:
+        # TODO(ed): ptr deref
+        var = eat_token(statement)
+        if token(statement) != "=":
+            parser_error(tok, "Invalid assignment, expected \"=\"")
+        eat_token(statement)
+        expr, statement = parse_expression(statement)
+        if statement:
+            parser_error(tok, "Cannot find end of expression")
+        return ("assignment", var, expr), tok
+    elif len(statement) == 2: # TODO(ed): Wrong
+        # TODO(ed): ptr deref
+        var = eat_token(statement)
+        v_type, statement = parse_type(statement)
+        if statement:
+            parser_error(tok, "Cannot find end of expression")
+        return ("def", var, v_type), tok
+    else:
+        parser_error(tok, "Failed to parse expression, unexpected token")
 
 
 def parse_statements(tok_in):
@@ -127,6 +152,24 @@ def parse_statements(tok_in):
         statement, tok = parse_statement(tok)
         statements.append(statement)
     return statements, tok
+
+# TODO(ed): Better type parsing
+def parse_type(tok):
+    is_const = token(tok) == "const"
+    if is_const: eat_token(tok)
+
+    # Check this is a valid type
+    base = eat_token(tok)
+    ref = 0
+    while tok:
+        if token(tok) == "*":
+            eat_token(tok)
+            ref += 1
+        else:
+            break
+    return ("type", is_const, base, ref), tok
+
+
 
 def try_parse_func_def(tok_in):
     # Parse is_pub
@@ -153,15 +196,11 @@ def try_parse_func_def(tok_in):
         if eat_token(tok) == ")":
             break
         a_name = eat_token(tok)
-        a_type = []
-        while token(tok) not in ",)":
-            a_type.append(eat_token(tok))
+        a_type, tok = parse_type(tok)
         args.append((a_name, a_type))
 
     # Parse ret type
-    ret_type = []
-    while token(tok) not in "{":
-        ret_type.append(eat_token(tok))
+    ret_type, tok = parse_type(tok)
 
     if not eat_token(tok) == "{":
         parser_error(tok, "Expected body of function here \"{\"")
@@ -169,16 +208,18 @@ def try_parse_func_def(tok_in):
     statements, tok = parse_statements(tok)
     return ("func", is_pub, name, args, ret_type, statements), tok
 
+import sys
 def parser_error(tokens, message):
     # TODO(ed): Fix this
     print("ERROR {}|{}: \"{}\", {}".format(tokens[0][0][0],
                                            tokens[0][0][1],
                                            tokens[0][1],
-                                           message))
+                                           message),
+          file=sys.stderr)
+
 
 def parse(filename, string):
     tokens = ZeeTokenizer(filename, string).tokenize()
-    print(tokens)
     defs = []
     while tokens:
         func, tokens = try_parse_func_def(tokens)
@@ -190,9 +231,53 @@ def parse(filename, string):
     return defs
 
 
+def code_gen(ast):
+    # Start here
+    defs = []
+    funcs = []
+
+    def format_type(t):
+        _, is_const, base, ptr = t
+        return ("const" * is_const) + base + "*" * ptr
+
+    def code_gen_expr(expr):
+        if not expr: return ""
+        if len(expr) == 1:
+            return expr[0]
+        if len(expr) == 3:
+            return expr[0] + expr[1] + expr[2]
+
+    for d in ast:
+        if d[0] == "func":
+            _, is_pub, name, args, ret_type, statements = d
+            args_string = ", ".join([format_type(t) + " " + n for n, t in args])
+            header = "{} {}({});\n" .format(format_type(ret_type),
+                                            name, args_string)
+            if not is_pub:
+                header = "static " +  header
+
+            defs.append(header)
+
+            body_list = []
+            for statement in statements:
+                if statement[0] == "return":
+                    body_list.append("return {};".format(code_gen_expr(statement[1])))
+            body = "\n".join(body_list)
+            funcs.append(header[:-2] + "\n{\n" + body + "\n}")
+
+    print("// Defs")
+    print("\n".join(defs))
+    print("// Funcs")
+    print("\n".join(funcs))
+
+
+
+
+
 import sys
 if __name__ == "__main__":
     filename = "example.z"
     filename = sys.argv[1]
     with open(filename) as f:
-        print(parse(filename, f.read()))
+        ast = parse(filename, f.read())
+        code_gen(ast)
