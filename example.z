@@ -1,6 +1,0 @@
-@main (argc int, argv char**) int {
-    // This is a comment
-    a int;
-    a = 0;
-    return a;
-}

@@ -1,0 +1,56 @@
+program: global_statement+
+
+global_statement: function
+
+function: identifier "(" func_args ")" type block
+
+func_arg: identifier type
+func_args: [func_arg ("," func_arg)*]
+
+block: "{" statements "}"
+statements: [statement (statement)*]
+
+statement: block
+         | return
+         | definition
+         | assign
+         | if
+         | expression ";"
+
+return: "return" expression ";"
+if: "if" expression block ("else" block)?
+assign: identifier "=" expression ";"
+definition: identifier type? ":=" expression ";"
+
+expression: identifier
+          | constant
+          | expression binary_operator expression
+          | call
+
+call: identifier "(" call_args ")"
+call_args: [expression ("," expression)*]
+
+constant: signed_number
+        | hex_number
+        | bin_number
+
+signed_number: /-?\d+(\.\d+)?([eE][+-]?\d+)?/
+hex_number: "0x" /[0-9ABCDEFabcdef_]+/
+bin_number: "0b" /[01_]+/
+
+
+
+binary_operator: "+" | "-" | "*" | "/" | "%"
+               | "&" | "|" | "^" | "~"
+               | "<" | "<=" | "<<"
+               | "==" | "!="
+               | ">" | ">=" | ">>"
+
+identifier: /[a-z]+/
+
+type: /[a-z]+/
+
+%import common.ESCAPED_STRING
+%import common.SIGNED_NUMBER
+%import common.WS
+%ignore WS

@@ -1,0 +1,9 @@
+fac(a int) int {
+    if a == 0 { return 1; }
+    return a * fac(a - 1);
+}
+
+main() int {
+    a := 10;
+    return fac(a);
+}
