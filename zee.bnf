@@ -1,6 +1,6 @@
-program: global_statement+
+program: _global_statement+
 
-global_statement: function
+_global_statement: function
 
 function: identifier "(" func_args ")" type block
 
@@ -37,7 +37,6 @@ constant: signed_number
 signed_number: /-?\d+(\.\d+)?([eE][+-]?\d+)?/
 hex_number: "0x" /[0-9ABCDEFabcdef_]+/
 bin_number: "0b" /[01_]+/
-
 
 
 binary_operator: "+" | "-" | "*" | "/" | "%"
