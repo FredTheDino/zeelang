@@ -18,9 +18,13 @@ statement: block
          | expression ";"
 
 return: "return" expression ";"
+
 if: "if" expression block ("else" block)?
+
 assign: identifier "=" expression ";"
+
 definition: identifier type? ":=" expression ";"
+          | identifier type ";"
 
 expression: identifier
           | constant
@@ -45,9 +49,9 @@ binary_operator: "+" | "-" | "*" | "/" | "%"
                | "==" | "!="
                | ">" | ">=" | ">>"
 
-identifier: /[a-z]+/
+identifier: /[A-z0-9]+/
 
-type: /[a-z]+/
+type: /[A-z0-9]+/
 
 %import common.ESCAPED_STRING
 %import common.SIGNED_NUMBER

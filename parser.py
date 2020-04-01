@@ -1,6 +1,5 @@
 from lark import Lark
 
-import code_gen
 with open("zee.bnf") as f:
     bnf = f.read()
 
@@ -25,7 +24,7 @@ def get_func_name(func_token):
 
 def arg_to_var(arg):
     name, arg = arg.children
-    return code_gen.Variable(get_identifier_name(name), get_type_name(arg))
+    return code_gen.Variable(name, arg)
 
 def get_func_args(func_token):
     assert func_token.data == "function"
@@ -38,8 +37,9 @@ def get_func_ret(func_token):
 
 def get_func_body(func_token):
     assert func_token.data == "function"
-    return next(func_token.find_data("block"))
+    return func_token.children[3]
 
+import code_gen
 
 # Util
 def error(message, token):

@@ -1,2 +1,2 @@
 test:
-	python3 parser.py
+	python3 compiler.py
