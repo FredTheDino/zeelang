@@ -27,9 +27,14 @@ definition: identifier type? ":=" expression ";"
           | identifier type ";"
 
 expression: identifier
-          | constant
-          | expression binary_operator expression
           | call
+          | add_expr
+
+ADD_OP: "+" | "-"
+add_expr: mul_expr (ADD_OP mul_expr)*
+MUL_OP: "*" | "/"
+mul_expr: prim_expr (MUL_OP prim_expr)*
+prim_expr: "(" expression ")" | constant
 
 call: identifier "(" call_args ")"
 call_args: [expression ("," expression)*]
@@ -43,15 +48,15 @@ hex_number: "0x" /[0-9ABCDEFabcdef_]+/
 bin_number: "0b" /[01_]+/
 
 
-binary_operator: "+" | "-" | "*" | "/" | "%"
+BINARY_OPERATOR: "+" | "-" | "*" | "/" | "%"
                | "&" | "|" | "^" | "~"
                | "<" | "<=" | "<<"
                | "==" | "!="
                | ">" | ">=" | ">>"
 
-identifier: /[A-z0-9]+/
+identifier: /[A-z][A-z0-9]+/
 
-type: /[A-z0-9]+/
+type: /[A-z][A-z0-9]+/
 
 %import common.ESCAPED_STRING
 %import common.SIGNED_NUMBER
