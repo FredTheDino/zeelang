@@ -1,85 +1,38 @@
 from util import error, warning, Variable, Scope
+from lark import Transformer
 
-class Expression(object):
+class OptimusPrime(Transformer):
 
-    def __init__(self, node, start=0):
-        print("a")
-        node.iter_subtrees_topdown()
-        print("b")
-        children = node.children[start:]
-        if len(children) >= 3:
-            print("--", node)
-            self.kind = "binary_operator"
-            self.op = children[1]
-            self.children = [Expression(children[0]),
-                             Expression(children[2])]
-            if self.children[0].type == self.children[1].type:
-                self.type = self.children[0].type
-            else:
-                error("Invalid types for operator \"" + self.op + "\"", self.op)
-        elif len(children) == 1:
-            if node.data == "expression":
-                node = children[0]
-            if node.data == "signed_number":
-                self.kind = "signed_number"
-                self.number = children[0]
-                self.type = "s32"
-            else:
-                error("Failed to parse expression", node.meta)
+    def signed_number(self, num):
+        as_num = int(num[0])
+        return "i32", as_num
+
+    def constant(self, const):
+        type_name, value = const[0]
+        return "const " + type_name, value
+
+    def prim_expr(self, expr):
+        return expr[0]
+
+    def build_expr(self, expr):
+        if len(expr) == 1:
+            return expr[0]
         else:
-            error("Failed to parse expression", node.meta)
+            left, op = expr[:2]
+            return [op, left, self.build_expr(expr[2:])]
 
+    def mul_expr(self, expr):
+        return self.build_expr(expr)
 
-    def gen(self):
-        if self.kind == "binary_operator":
-            return "(" + self.children[0].gen() + self.op + self.children[1].gen() + ")"
-        if self.kind == "signed_number":
-            return self.number
-        error("Unknown type for gen")
+    def add_expr(self, expr):
+        return self.build_expr(expr)
 
-    def __str__(self):
-        return self.gen()
+    def expression(self, expr):
+        return "expression", expr[0]
 
-    def __repr__(self):
-        return self.gen()
-
-
-def gen_block(block, outer_scope):
-    assert block.data == "block"
-    scope = Scope(outer_scope)
-    return gen_statements(block.children[0], scope)
-
-
-def gen_return(statement, scope):
-    assert statement.data == "return"
-    expr = gen_expression(statement.children[0], scope)
-    print(expr)
-    return "return", expr
-
-
-def gen_expression(statement, scope):
-    return Expression(statement)
-
-
-def gen_statement(statement, scope):
-    assert statement.data == "statement"
-    statement = statement.children[0]
-    if statement.data == "block":
-        return gen_block(statement, scope)
-    if statement.data == "return":
-        return gen_return(statement, scope)
-    if statement.data == "definition":
-        error("INVALID CODE PATH")
-    if statement.data == "assign":
-        error("INVALID CODE PATH")
-    if statement.data == "if":
-        error("INVALID CODE PATH")
-    if statement.data == "expression":
-        return gen_expression(statement, scope) + ";"
-
-
-def gen_statements(statements, scope):
-    assert statements.data == "statements"
-    return [gen_statement(statement, scope) for statement
-            in statements.children]
-
+# TODO(ed): Propagate types
+def gen_code(tree):
+    print("in:")
+    print(tree.pretty())
+    print("out:")
+    print(OptimusPrime().transform(tree).pretty())
