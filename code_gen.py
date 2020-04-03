@@ -2,30 +2,32 @@ from util import error, warning, Variable, Scope
 
 class Expression(object):
 
-    def __init__(self, node):
-        if len(node.children) >= 3:
+    def __init__(self, node, start=0):
+        print("a")
+        node.iter_subtrees_topdown()
+        print("b")
+        children = node.children[start:]
+        if len(children) >= 3:
             print("--", node)
             self.kind = "binary_operator"
-            self.op = node.children[1]
-            self.children = [Expression(node.children[0]),
-                             Expression(node.children[2])]
+            self.op = children[1]
+            self.children = [Expression(children[0]),
+                             Expression(children[2])]
             if self.children[0].type == self.children[1].type:
                 self.type = self.children[0].type
             else:
                 error("Invalid types for operator \"" + self.op + "\"", self.op)
-        elif len(node.children) == 1:
+        elif len(children) == 1:
             if node.data == "expression":
-                node = node.children[0]
+                node = children[0]
             if node.data == "signed_number":
                 self.kind = "signed_number"
-                self.number = node.children[0]
+                self.number = children[0]
                 self.type = "s32"
             else:
-                print(node)
-                error("Failed to parse expression", node)
+                error("Failed to parse expression", node.meta)
         else:
-            print(node)
-            error("Failed to parse expression", node)
+            error("Failed to parse expression", node.meta)
 
 
     def gen(self):

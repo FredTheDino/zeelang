@@ -6,7 +6,7 @@ import code_gen
 def parse_file(filename):
     # TODO(ed): This should be a function
     with open("zee.bnf") as f:
-        parser = Lark(f.read(), parser="lalr", start="program")
+        parser = Lark(f.read(), parser="lalr", propagate_positions=True, start="program")
 
     with open(filename) as f:
         tree = parser.parse(f.read())
