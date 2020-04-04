@@ -2,31 +2,31 @@ program: _global_statement+
 
 _global_statement: function
 
-function: identifier "(" func_args ")" type block
+function: IDENTIFIER "(" func_args ")" TYPE block
 
-func_arg: identifier type
+func_arg: IDENTIFIER TYPE
 func_args: [func_arg ("," func_arg)*]
 
 block: "{" statements "}"
 statements: [statement (statement)*]
 
 statement: block
-         | return
+         | return_stmt
          | definition
          | assign
          | if
          | expression ";"
 
-return: "return" expression ";"
+return_stmt: "return" expression ";"
 
 if: "if" expression block ("else" block)?
 
-assign: identifier "=" expression ";"
+assign: IDENTIFIER "=" expression ";"
 
-definition: identifier type? ":=" expression ";"
-          | identifier type ";"
+definition: IDENTIFIER TYPE? ":=" expression ";"
+          | IDENTIFIER TYPE ";"
 
-expression: identifier
+expression: IDENTIFIER
           | call
           | add_expr
 
@@ -36,7 +36,7 @@ MUL_OP: "*" | "/"
 mul_expr: prim_expr (MUL_OP prim_expr)*
 prim_expr: "(" expression ")" | constant
 
-call: identifier "(" call_args ")"
+call: IDENTIFIER "(" call_args ")"
 call_args: [expression ("," expression)*]
 
 constant: signed_number
@@ -54,9 +54,9 @@ BINARY_OPERATOR: "+" | "-" | "*" | "/" | "%"
                | "==" | "!="
                | ">" | ">=" | ">>"
 
-identifier: /[A-z][A-z0-9]+/
+IDENTIFIER: /[A-z][A-z0-9]*/
 
-type: /[A-z][A-z0-9]+/
+TYPE: /[A-z][A-z0-9]*/
 
 %import common.ESCAPED_STRING
 %import common.SIGNED_NUMBER
