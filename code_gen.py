@@ -9,8 +9,8 @@ class OptimusPrime(Transformer):
         return "i32", as_num
 
     def constant(self, const):
-        type_name, value = const[0]
-        return "const " + type_name, value
+        typename, value = const[0]
+        return "const " + typename, value
 
     def prim_expr(self, expr):
         return expr[0]
@@ -70,10 +70,63 @@ class OptimusPrime(Transformer):
                     assert False, "Invalid function!"
         return "func", name, ret, args, statements
 
+    # Program
+    def program(self, prog):
+        return prog
+
+
+
+
+def write_program(program):
+    def write_func(func):
+        assert func[0] == "func"
+        _, name, ret, args, statements = func
+        # TODO(ed): Namemangling
+        args = write_args(args)
+        statements = write_statements(statements)
+        return f"{ret} {name} {args}" + " {\n" + f"{statements}" + "\n}"
+
+    def write_args(args):
+        args = [arg.typename + " " + arg.name for arg in args]
+        return "(" + ", ".join(args) + ")"
+
+    def write_statements(statements):
+        return ";\n".join([write_statement(stmt) for stmt in statements])
+
+
+    def write_statement(statement):
+        kind = statement[0]
+        if kind == "return":
+            expr = write_expression(statement[1])
+            return f"return {expr};"
+        else:
+            assert False, "Invalid statement!"
+
+    def write_expression(expr):
+        def rec_write_expression(expr):
+            if type(expr) == list:
+                assert len(expr) == 3, "Invalid expression!"
+                op, left, right = expr
+                left = rec_write_expression(left)
+                right = rec_write_expression(right)
+                return f"({left} {op} {right})"
+            elif type(expr) == tuple:
+                typename, value = expr
+                return value
+            else:
+                assert False, "Invalid expression!"
+        assert expr[0] == "expression", "Invalid expression!"
+        return rec_write_expression(expr[1])
+
+    return "\n".join([write_func(func) for func in program])
+
 
 # TODO(ed): Propagate types
 def gen_code(tree):
-    print("in:")
-    print(tree.pretty())
-    print("out:")
-    print(OptimusPrime().transform(tree).pretty())
+    # print("in:")
+    # print(tree.pretty())
+    # print("out:")
+    # print(program)
+    program = OptimusPrime().transform(tree)
+    with open("out.c", "w") as f:
+        f.write(write_program(program))

@@ -9,14 +9,14 @@ uid_counter = 1
 
 class Variable(object):
 
-    def __init__(self, name, kind):
+    def __init__(self, name, typename):
         global uid_counter
         self.name = name
-        self.kind = kind
+        self.typename = typename
         self.uid = uid_counter + 1
 
     def __str__(self):
-        return "Var: " + self.name + "(" + self.kind + ")"
+        return "Var: " + self.name + "(" + self.typename + ")"
 
     def __repr__(self):
         return self.__str__()
