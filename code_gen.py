@@ -10,7 +10,7 @@ class OptimusPrime(Transformer):
 
     def constant(self, const):
         typename, value = const[0]
-        return "const " + typename, value
+        return typename, value
 
     def prim_expr(self, expr):
         return expr[0]
@@ -37,6 +37,9 @@ class OptimusPrime(Transformer):
 
     def return_stmt(self, ret):
         return "return", ret[0]
+
+    def definition(self, definition):
+        return "definition", definition
 
     def block(self, scope):
         return scope[0]
@@ -75,32 +78,52 @@ class OptimusPrime(Transformer):
         return prog
 
 
-
-
 def write_program(program):
     def write_func(func):
         assert func[0] == "func"
         _, name, ret, args, statements = func
+        ret = write_type(ret)
         # TODO(ed): Namemangling
         args = write_args(args)
         statements = write_statements(statements)
         return f"{ret} {name} {args}" + " {\n" + f"{statements}" + "\n}"
 
     def write_args(args):
-        args = [arg.typename + " " + arg.name for arg in args]
+        args = [write_type(arg.typename) + " " + arg.name \
+                for arg in args]
         return "(" + ", ".join(args) + ")"
 
     def write_statements(statements):
         return ";\n".join([write_statement(stmt) for stmt in statements])
 
+    def infer_type_from_expression(expr):
+        assert expr[0] == "expression"
+        if type(expr[1]) == tuple:
+            return expr[1][0]
+        else:
+            raise SyntaxError("Cannot infer type from expression: " + str(expr))
 
     def write_statement(statement):
         kind = statement[0]
         if kind == "return":
             expr = write_expression(statement[1])
             return f"return {expr};"
-        else:
-            assert False, "Invalid statement!"
+        if kind == "definition":
+            if len(statement[1]) == 3:
+                name, typename, expr = statement[1]
+                typename = write_type(typename)
+                expr = write_expression(expr)
+            else:
+                name, expr = statement[1]
+                typename = infer_type_from_expression(expr)
+                typename = write_type(typename)
+                expr = write_expression(expr)
+            return f"{typename} {name} = {expr}"
+
+        assert False, "Invalid statement!"
+
+    def write_type(typename):
+        return typename + "_zee_t0"
 
     def write_expression(expr):
         def rec_write_expression(expr):
@@ -113,20 +136,27 @@ def write_program(program):
             elif type(expr) == tuple:
                 typename, value = expr
                 return value
+            elif expr.type == "IDENTIFIER":
+                return str(expr)
             else:
                 assert False, "Invalid expression!"
         assert expr[0] == "expression", "Invalid expression!"
         return rec_write_expression(expr[1])
 
-    return "\n".join([write_func(func) for func in program])
+    preamble = "#include <stdint.h>\ntypedef int32_t " + write_type("i32") + ";\n"
+    body = "\n".join([write_func(func) for func in program])
+    return preamble + body
 
 
 # TODO(ed): Propagate types
 def gen_code(tree):
-    # print("in:")
-    # print(tree.pretty())
-    # print("out:")
-    # print(program)
+    print("in:")
+    print(tree.pretty())
+    print("out:")
     program = OptimusPrime().transform(tree)
+    print(program)
+    print("source:")
     with open("out.c", "w") as f:
-        f.write(write_program(program))
+        source = write_program(program)
+        f.write(source)
+    print(source)
