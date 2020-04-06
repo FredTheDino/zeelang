@@ -1,4 +1,4 @@
-from util import error, warning, Variable, Scope
+from util import error, warning, Variable, Scope, Type
 from lark import Transformer, Token, Tree
 
 class OptimusPrime(Transformer):
@@ -6,7 +6,7 @@ class OptimusPrime(Transformer):
     # Expression parsing
     def signed_number(self, num):
         as_num = int(num[0])
-        return "i32", as_num
+        return "I32", as_num
 
     def constant(self, const):
         typename, value = const[0]
@@ -32,6 +32,12 @@ class OptimusPrime(Transformer):
         return "expression", expr[0]
 
     # Statement parsing
+    def statements(self, statements):
+        return statements
+
+    def block(self, block):
+        return "block", block[0]
+
     def statement(self, statement):
         return statement[0]
 
@@ -41,8 +47,8 @@ class OptimusPrime(Transformer):
     def definition(self, definition):
         return "definition", definition
 
-    def block(self, scope):
-        return scope[0]
+    def assign(self, assign):
+        return "assign", assign
 
     # Terminals
     def identifier(self, ident):
@@ -60,8 +66,6 @@ class OptimusPrime(Transformer):
             if type(tree) == Tree:
                 if tree.data == "func_args":
                     args = tree.children
-                elif tree.data == "statements":
-                    statements = tree.children
                 else:
                     assert False, "Invalid function!"
             elif type(tree) == Token:
@@ -71,7 +75,11 @@ class OptimusPrime(Transformer):
                     ret = tree
                 else:
                     assert False, "Invalid function!"
-        return "func", name, ret, args, statements
+            elif "block" in tree:
+                block = tree
+            else:
+                assert False, "Invalid function!"
+        return "func", name, ret, args, block
 
     # Program
     def program(self, prog):
@@ -79,53 +87,96 @@ class OptimusPrime(Transformer):
 
 
 def write_program(program):
-    def write_func(func):
+    def indent(string, level):
+        return (" " * (level * 4)) + string
+
+    def write_func(func, scope):
         assert func[0] == "func"
         _, name, ret, args, statements = func
-        ret = write_type(ret)
+        ret = write_type(ret, scope)
         # TODO(ed): Namemangling
-        args = write_args(args)
-        statements = write_statements(statements)
+        args = write_args(args, scope)
+        statements = write_block(statements, scope, 0)
         return f"{ret} {name} {args}" + " {\n" + f"{statements}" + "\n}"
 
-    def write_args(args):
-        args = [write_type(arg.typename) + " " + arg.name \
+    def write_args(args, scope):
+        args = [write_type(arg.typename, scope) + " " + arg.name \
                 for arg in args]
         return "(" + ", ".join(args) + ")"
 
-    def write_statements(statements):
-        return ";\n".join([write_statement(stmt) for stmt in statements])
+    def write_statements(statements, scope, level):
+        return ";\n".join([indent(write_statement(stmt, scope, level), level) for stmt in statements])
 
-    def infer_type_from_expression(expr):
+    def infer_type_from_expression(expr, scope):
         assert expr[0] == "expression"
         if type(expr[1]) == tuple:
             return expr[1][0]
         else:
             raise SyntaxError("Cannot infer type from expression: " + str(expr))
 
-    def write_statement(statement):
-        kind = statement[0]
-        if kind == "return":
-            expr = write_expression(statement[1])
+    def write_block(block, scope, level):
+        inner_scope = Scope(scope)
+        return write_statements(block[1], inner_scope, level + 1)
+
+    def write_statement(statement, scope, level):
+
+        def is_return(stmt):
+            return stmt[0] == "return"
+
+        def is_definition(stmt):
+            return stmt[0] == "definition"
+
+        def has_definition_type(stmt):
+            return len(statement[1]) == 3
+
+        def is_assign(stmt):
+            return stmt[0] == "assign"
+
+        def is_block(stmt):
+            return type(stmt) == Tree and stmt.data == "block"
+
+        def is_statements(statements):
+            return type(statements) == list
+
+        if is_statements(statement):
+            return write_statements(statement, scope, level)
+
+        if is_block(statement):
+            return write_block(statement, inner_scope, level)
+
+        if is_return(statement):
+            expr = write_expression(statement[1], scope)
             return f"return {expr};"
-        if kind == "definition":
-            if len(statement[1]) == 3:
+
+        if is_definition(statement):
+            if has_definition_type(statement):
                 name, typename, expr = statement[1]
-                typename = write_type(typename)
-                expr = write_expression(expr)
+                typename = write_type(typename, scope)
+                expr = write_expression(expr, scope)
             else:
                 name, expr = statement[1]
-                typename = infer_type_from_expression(expr)
-                typename = write_type(typename)
-                expr = write_expression(expr)
+                typename = infer_type_from_expression(expr, scope)
+                typename = write_type(typename, scope)
+                expr = write_expression(expr, scope)
+            scope.define(Variable(name, typename))
             return f"{typename} {name} = {expr}"
 
+        if is_assign(statement):
+            name, expr = statement[1]
+            # typename = infer_type_from_expression(expr, scope)
+            expr = write_expression(expr, scope)
+            return f"{name} = {expr}"
+
+        error(statement, None)
         assert False, "Invalid statement!"
 
-    def write_type(typename):
-        return typename + "_zee_t0"
+    def write_type(typename, scope):
+        t = scope.look_up(typename)
+        if type(t) != Type:
+            error(f"{typename} is not a type", typename)
+        return t.translate()
 
-    def write_expression(expr):
+    def write_expression(expr, scope):
         def rec_write_expression(expr):
             if type(expr) == list:
                 assert len(expr) == 3, "Invalid expression!"
@@ -143,18 +194,34 @@ def write_program(program):
         assert expr[0] == "expression", "Invalid expression!"
         return rec_write_expression(expr[1])
 
-    preamble = "#include <stdint.h>\ntypedef int32_t " + write_type("i32") + ";\n"
-    body = "\n".join([write_func(func) for func in program])
+    scope = Scope()
+    types = [
+        ("B8", 4, "int8_t"),
+        ("I8", 4, "int8_t"),
+        ("U8", 4, "uint8_t"),
+        ("I16", 4, "int16_t"),
+        ("U16", 4, "uint16_t"),
+        ("I32", 8, "int32_t"),
+        ("U32", 8, "uint32_t"),
+        ("I64", 16, "int64_t"),
+        ("U64", 16, "uint64_t"),
+    ]
+    for t in types:
+        scope.define(Type(*t))
+
+    preamble = "#include <stdint.h>\n"
+    body = "\n".join([write_func(func, scope) for func in program])
+    preamble += scope.write_types()
     return preamble + body
 
 
 # TODO(ed): Propagate types
 def gen_code(tree):
-    print("in:")
-    print(tree.pretty())
-    print("out:")
+    # print("in:")
+    # print(tree.pretty())
+    # print("out:")
     program = OptimusPrime().transform(tree)
-    print(program)
+    # print(program)
     print("source:")
     with open("out.c", "w") as f:
         source = write_program(program)
