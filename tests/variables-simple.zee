@@ -1,5 +1,5 @@
 main() I32 {
-    a := 5;
-    a = a * a;
+    a I32 := 5;
+    a = a * a * 2;
     return a + 1;
 }

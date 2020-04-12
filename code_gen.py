@@ -6,7 +6,7 @@ class OptimusPrime(Transformer):
     # Expression parsing
     def signed_number(self, num):
         as_num = int(num[0])
-        return "I32", as_num
+        return "?NUM", as_num
 
     def constant(self, const):
         typename, value = const[0]
@@ -107,12 +107,37 @@ def write_program(program):
     def write_statements(statements, scope, level):
         return ";\n".join([indent(write_statement(stmt, scope, level), level) for stmt in statements])
 
-    def infer_type_from_expression(expr, scope):
+    def infer_type_and_typecheck(expr, scope):
         assert expr[0] == "expression"
-        if type(expr[1]) == tuple:
-            return expr[1][0]
-        else:
-            raise SyntaxError("Cannot infer type from expression: " + str(expr))
+        sub = expr[1]
+        def infer_type_rec(outer, scope):
+            if type(outer) == Token:
+                if outer.type == "IDENTIFIER":
+                    return scope.look_up(outer).typename
+                else:
+                    raise SyntaxError("Unexptected token" + str(outer))
+            elif type(outer) == tuple:
+                potential_type = outer[0]
+                return potential_type
+            elif type(outer) == list:
+                op, left, right = outer
+                left = infer_type_rec(left, scope)
+                right = infer_type_rec(right, scope)
+                if left == right: return left
+                if left[0] == "?" and right[0] != "?":
+                    known = left
+                    unknown = right
+                elif left[0] != "?" and right[0] == "?":
+                    known = right
+                    unknown = left
+                else:
+                    raise SyntaxError("Cannot infer type from expression, types don't match: " + str(expr))
+                # TODO(ed): This is a simple typecheck, needs to be more robust later,
+                # we need to check it's actually a numeric type and stuff like that.
+                return known
+            else:
+                raise SyntaxError("Cannot infer type from expression: " + str(expr))
+        return infer_type_rec(sub, scope)
 
     def write_block(block, scope, level):
         inner_scope = Scope(scope)
@@ -155,7 +180,7 @@ def write_program(program):
                 expr = write_expression(expr, scope)
             else:
                 name, expr = statement[1]
-                typename = infer_type_from_expression(expr, scope)
+                typename = infer_type_and_typecheck(expr, scope)
                 typename = write_type(typename, scope)
                 expr = write_expression(expr, scope)
             scope.define(Variable(name, typename))
@@ -163,7 +188,7 @@ def write_program(program):
 
         if is_assign(statement):
             name, expr = statement[1]
-            # typename = infer_type_from_expression(expr, scope)
+            typename = infer_type_and_typecheck(expr, scope)
             expr = write_expression(expr, scope)
             return f"{name} = {expr}"
 
@@ -192,6 +217,7 @@ def write_program(program):
             else:
                 assert False, "Invalid expression!"
         assert expr[0] == "expression", "Invalid expression!"
+        assert infer_type_and_typecheck(expr, scope) is not None, "Failed to infer type"
         return rec_write_expression(expr[1])
 
     scope = Scope()
@@ -221,7 +247,7 @@ def gen_code(tree):
     # print(tree.pretty())
     # print("out:")
     program = OptimusPrime().transform(tree)
-    # print(program)
+    print(program)
     print("source:")
     with open("out.c", "w") as f:
         source = write_program(program)
