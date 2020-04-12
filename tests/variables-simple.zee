@@ -1,5 +1,6 @@
+# Ret: 26
 main() I32 {
     a I32 := 5;
-    a = a * a * 2;
+    a = a * a * 1;
     return a + 1;
 }

@@ -241,15 +241,12 @@ def write_program(program):
     return preamble + body
 
 
-# TODO(ed): Propagate types
-def gen_code(tree):
-    # print("in:")
-    # print(tree.pretty())
-    # print("out:")
+def gen_code(tree, debug):
     program = OptimusPrime().transform(tree)
-    print(program)
-    print("source:")
-    with open("out.c", "w") as f:
-        source = write_program(program)
-        f.write(source)
-    print(source)
+    source = write_program(program)
+    if debug:
+        print("in:")
+        print(tree.pretty())
+        print("out:")
+        print(source)
+    return source

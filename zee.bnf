@@ -57,6 +57,9 @@ IDENTIFIER: /[A-z][A-z0-9]*/
 
 TYPE: /[A-z][A-z0-9]*/
 
+COMMENT: "#" /[^\n]/*
+%ignore COMMENT
+
 %import common.ESCAPED_STRING
 %import common.SIGNED_NUMBER
 %import common.WS

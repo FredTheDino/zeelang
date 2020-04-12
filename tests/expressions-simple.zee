@@ -1,3 +1,4 @@
+# Ret: 34
 main() I32 {
     return 5 * 2 * 3 + 4;
 }
