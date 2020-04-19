@@ -1,4 +1,4 @@
-from util import error, warning, Variable, Scope, Type
+from util import error, warning, Variable, Function, Scope, Type
 from lark import Transformer, Token, Tree
 
 class OptimusPrime(Transformer):
@@ -10,7 +10,7 @@ class OptimusPrime(Transformer):
 
     def constant(self, const):
         typename, value = const[0]
-        return typename, value
+        return "const", typename, value
 
     def prim_expr(self, expr):
         return expr[0]
@@ -81,6 +81,13 @@ class OptimusPrime(Transformer):
                 assert False, "Invalid function!"
         return "func", name, ret, args, block
 
+    def call(self, call):
+        if len(call) == 2:
+            args = call[2]
+        else:
+            args = []
+        return "call", call[0], args
+
     # Program
     def program(self, prog):
         return prog
@@ -116,9 +123,14 @@ def write_program(program):
                     return scope.look_up(outer).typename
                 else:
                     raise SyntaxError("Unexptected token" + str(outer))
-            elif type(outer) == tuple:
-                potential_type = outer[0]
+            elif type(outer) == tuple and outer[0] == "const":
+                potential_type = outer[1]
                 return potential_type
+            elif type(outer) == tuple and outer[0] == "call":
+                    _, name, args = outer
+                    arg_types = [infer_type_and_typecheck(arg) for arg in args]
+                    func = scope.look_up_func(name, arg_types)
+                    return func.returntype
             elif type(outer) == list:
                 op, left, right = outer
                 left = infer_type_rec(left, scope)
@@ -210,8 +222,18 @@ def write_program(program):
                 right = rec_write_expression(right)
                 return f"({left} {op} {right})"
             elif type(expr) == tuple:
-                typename, value = expr
-                return value
+                kind = expr[0]
+                if kind == "const":
+                    _, typename, value = expr
+                    return value
+                if kind == "call":
+                    _, name, args = expr
+                    # TODO(ed): Typecheck and arguments
+                    args = [rec_write_expression(arg) for arg in args]
+                    arg_types = [infer_type_and_typecheck(arg) for arg in args]
+                    func = scope.look_up_func(name, arg_types)
+                    return func.translate() + "(" + ", ".join(args) + ")"
+
             elif expr.type == "IDENTIFIER":
                 return str(expr)
             else:
@@ -236,17 +258,28 @@ def write_program(program):
         scope.define(Type(*t))
 
     preamble = "#include <stdint.h>\n"
+
+    for func in program:
+        _, name, ret, args, _ = func
+        ret = scope.look_up(ret)
+        args = [scope.look_up(arg[1]) for arg in args]
+        scope.define(Function(name, ret, args))
+
     body = "\n".join([write_func(func, scope) for func in program])
     preamble += scope.write_types()
+    preamble += scope.write_funcs()
     return preamble + body
 
 
 def gen_code(tree, debug):
     program = OptimusPrime().transform(tree)
-    source = write_program(program)
     if debug:
         print("in:")
         print(tree.pretty())
+
+    source = write_program(program)
+    if debug:
         print("out:")
         print(source)
+
     return source

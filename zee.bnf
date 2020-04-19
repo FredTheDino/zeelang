@@ -35,7 +35,7 @@ MUL_OP: "*" | "/"
 mul_expr: prim_expr (MUL_OP prim_expr)*
 prim_expr: "(" expression ")" | IDENTIFIER | constant
 
-call: IDENTIFIER "(" call_args ")"
+call: IDENTIFIER "(" call_args? ")"
 call_args: [expression ("," expression)*]
 
 constant: signed_number

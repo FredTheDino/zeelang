@@ -10,6 +10,7 @@ def warning(message, token):
         print("ERROR (?, ?):", message)
 
 UID_VAR_COUNTER = 1
+UID_FUNC_COUNTER = 1
 UID_TYPE_COUNTER = 1
 
 class Variable(object):
@@ -32,6 +33,36 @@ class Variable(object):
     def __repr__(self):
         return self.__str__()
 
+
+class Function(object):
+
+    def __init__(self, name, returntype, argtypes):
+        global UID_FUNC_COUNTER
+        self.name = name
+        # TODO(ed): Verify this is defined.
+        self.returntype = returntype
+        self.argtypes = argtypes
+        self.uid = UID_FUNC_COUNTER
+        UID_FUNC_COUNTER += 1
+
+    def translate(self):
+        name, uid = self.name, self.uid
+        # Names are currently not translated, but if you have a
+        # non-exported function it should not be manged.
+        return name
+
+    def match(self, argtypes):
+        """ Returns true if the argument and return type matches. """
+        return all(map(lambda a, b: a == b, zip(self.argtypes, argtypes)))
+
+    def __str__(self):
+        name, returntype, uid = self.name, self.returntype, self.uid
+        return f"(F. {name} {returntype} #{uid})"
+
+    def __repr__(self):
+        return self.__str__()
+
+
 class Type(object):
 
     def __init__(self, name, size, c_name=None):
@@ -52,6 +83,7 @@ class Type(object):
 
     def __repr__(self):
         return self.__str__()
+
 
 class Scope(object):
 
@@ -81,6 +113,18 @@ class Scope(object):
         if counter == 0:
             error("name \"" + ident + "\" is not defined.", ident)
 
+    def look_up_func(self, ident, args, counter=0):
+        if ident in self.scope and self.scope[ident].match(args):
+            return self.scope[ident]
+        if self.outer_scope is not None:
+            res = self.outer_scope.look_up_func(ident, args, counter + 1)
+            if res is not None:
+                return res
+        if counter == 0:
+            error("func \"" + ident + "\"" +
+                  " is not defined with args: " + str(args) +
+                  ", and ret: " + str(ret), ident)
+
     def show(self):
         def indent(block):
             return block.replace("\n", "\n    ")
@@ -103,6 +147,17 @@ class Scope(object):
                 output.append(f"typedef {c_name} {name};\n")
         return "".join(output)
 
+    def write_funcs(self):
+        output = []
+        for name in self.scope:
+            definition = self.scope[name]
+            if type(definition) == Function:
+                ret = definition.returntype.translate()
+                name = definition.translate()
+                args = definition.argtypes
+                args = ", ".join([arg.translate() for arg in args])
+                output.append(f"{ret} {name}({args});\n")
+        return "".join(output)
 
     def __repr__(self):
         return self.show()

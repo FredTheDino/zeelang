@@ -1,0 +1,11 @@
+# Ret 3628800
+
+main() I32 {
+    a I32 := 10;
+    return fac(a);
+}
+
+fac(n I32) I32 {
+    if n == 0 { return 1; }
+    return n * fac(n - 1);
+}
