@@ -28,6 +28,9 @@ class OptimusPrime(Transformer):
     def add_expr(self, expr):
         return self.build_expr(expr)
 
+    def cmp_expr(self, expr):
+        return self.build_expr(expr)
+
     def expression(self, expr):
         return "expression", expr[0]
 
@@ -40,6 +43,9 @@ class OptimusPrime(Transformer):
 
     def statement(self, statement):
         return statement[0]
+
+    def if_stmt(self, if_stmt):
+        return "if", if_stmt[0]
 
     def return_stmt(self, ret):
         return "return", ret[0]
@@ -83,7 +89,7 @@ class OptimusPrime(Transformer):
 
     def call(self, call):
         if len(call) == 2:
-            args = call[2]
+            args = call[1]
         else:
             args = []
         return "call", call[0], args
@@ -104,7 +110,7 @@ def write_program(program):
         # TODO(ed): Namemangling
         args = write_args(args, scope)
         statements = write_block(statements, scope, 0)
-        return f"{ret} {name} {args}" + " {\n" + f"{statements}" + "\n}"
+        return f"{ret} {name} {args}" + f"{statements}"
 
     def write_args(args, scope):
         args = [write_type(arg.typename, scope) + " " + arg.name \
@@ -128,6 +134,8 @@ def write_program(program):
                 return potential_type
             elif type(outer) == tuple and outer[0] == "call":
                     _, name, args = outer
+                    # TODO(ed): This is easy, just make it not a tree.
+                    print(args)
                     arg_types = [infer_type_and_typecheck(arg) for arg in args]
                     func = scope.look_up_func(name, arg_types)
                     return func.returntype
@@ -144,21 +152,29 @@ def write_program(program):
                     unknown = left
                 else:
                     raise SyntaxError("Cannot infer type from expression, types don't match: " + str(expr))
+                ident = ["+", "-", "/", "*"]
+                boolean = ["==", "!=", "<", "<=", ">", ">="]
+                if op in ident:
+                    return known
+                elif op in boolean:
+                    return "B8"
                 # TODO(ed): This is a simple typecheck, needs to be more robust later,
                 # we need to check it's actually a numeric type and stuff like that.
-                return known
             else:
                 raise SyntaxError("Cannot infer type from expression: " + str(expr))
         return infer_type_rec(sub, scope)
 
     def write_block(block, scope, level):
         inner_scope = Scope(scope)
-        return write_statements(block[1], inner_scope, level + 1)
+        return " {\n" + write_statements(block[1], inner_scope, level + 1) + "}\n"
 
     def write_statement(statement, scope, level):
 
         def is_return(stmt):
             return stmt[0] == "return"
+
+        def is_if(stmt):
+            return stmt[0] == "if"
 
         def is_definition(stmt):
             return stmt[0] == "definition"
@@ -179,11 +195,18 @@ def write_program(program):
             return write_statements(statement, scope, level)
 
         if is_block(statement):
-            return write_block(statement, inner_scope, level)
+            return write_block(statement, scope, level)
 
         if is_return(statement):
             expr = write_expression(statement[1], scope)
             return f"return {expr};"
+
+        if is_if(statement):
+            # TODO(ed): Fix typecheck for bools, also, add bools
+            cmp_expr = write_expression(statement[1], scope)
+            print(infer_type_and_typecheck(statement[1], scope))
+            block = write_block(statement[2], scope, level + 1)
+            return f"if ({cmp_expr}) {block}"
 
         if is_definition(statement):
             if has_definition_type(statement):
@@ -262,7 +285,7 @@ def write_program(program):
     for func in program:
         _, name, ret, args, _ = func
         ret = scope.look_up(ret)
-        args = [scope.look_up(arg[1]) for arg in args]
+        args = [arg.typename for arg in args]
         scope.define(Function(name, ret, args))
 
     body = "\n".join([write_func(func, scope) for func in program])

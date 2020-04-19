@@ -14,26 +14,27 @@ statement: block
          | return_stmt
          | definition
          | assign
-         | if
+         | if_stmt
          | expression ";"
 
 return_stmt: "return" expression ";"
 
-if: "if" expression block ("else" block)?
+if_stmt: "if" expression block ("else" block)?
 
 assign: IDENTIFIER "=" expression ";"
 
 definition: IDENTIFIER TYPE? ":=" expression ";"
           | IDENTIFIER TYPE ";"
 
-expression: add_expr
-          | call
+expression: cmp_expr
 
+CMP_OP: "==" | "!=" | "<" | "<=" | ">" | ">="
+cmp_expr: add_expr (CMP_OP add_expr)*
 ADD_OP: "+" | "-"
 add_expr: mul_expr (ADD_OP mul_expr)*
 MUL_OP: "*" | "/"
 mul_expr: prim_expr (MUL_OP prim_expr)*
-prim_expr: "(" expression ")" | IDENTIFIER | constant
+prim_expr: "(" expression ")" | IDENTIFIER | constant | call
 
 call: IDENTIFIER "(" call_args? ")"
 call_args: [expression ("," expression)*]
