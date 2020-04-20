@@ -6,7 +6,7 @@ class OptimusPrime(Transformer):
     # Expression parsing
     def signed_number(self, num):
         as_num = int(num[0])
-        return "?NUM", as_num
+        return "NUM", as_num
 
     def constant(self, const):
         typename, value = const[0]
@@ -45,7 +45,7 @@ class OptimusPrime(Transformer):
         return statement[0]
 
     def if_stmt(self, if_stmt):
-        return "if", if_stmt[0]
+        return "if", *if_stmt
 
     def return_stmt(self, ret):
         return "return", ret[0]
@@ -65,7 +65,7 @@ class OptimusPrime(Transformer):
 
     # Functions
     def func_arg(self, arg):
-        return Variable(arg[0], arg[1])
+        return (arg[0], arg[1])
 
     def function(self, func):
         for tree in func:
@@ -94,6 +94,9 @@ class OptimusPrime(Transformer):
             args = []
         return "call", call[0], args
 
+    def call_args(self, args):
+        return args
+
     # Program
     def program(self, prog):
         return prog
@@ -106,19 +109,31 @@ def write_program(program):
     def write_func(func, scope):
         assert func[0] == "func"
         _, name, ret, args, statements = func
-        ret = write_type(ret, scope)
-        # TODO(ed): Namemangling
-        args = write_args(args, scope)
-        statements = write_block(statements, scope, 0)
-        return f"{ret} {name} {args}" + f"{statements}"
+
+        inner_scope = Scope(scope)
+        for name, typename in args:
+            inner_scope.define(Variable(name, scope.look_up(typename)))
+
+        ret = safe_type(ret, inner_scope)
+        retname = write_type(ret)
+        args = write_args(args, inner_scope)
+        statements = write_block(statements, inner_scope, 0)
+        return f"{retname} {name} {args}" + f"{statements}"
 
     def write_args(args, scope):
-        args = [write_type(arg.typename, scope) + " " + arg.name \
-                for arg in args]
+        args = [write_type(scope.look_up(typename)) + " " + name \
+                for name, typename in args]
         return "(" + ", ".join(args) + ")"
 
     def write_statements(statements, scope, level):
         return ";\n".join([indent(write_statement(stmt, scope, level), level) for stmt in statements])
+
+    def safe_type(t, scope):
+        if type(t) == Type:
+            return t
+        t = scope.look_up(t)
+        assert type(t) == Type, "Invalid type"
+        return t
 
     def infer_type_and_typecheck(expr, scope):
         assert expr[0] == "expression"
@@ -126,30 +141,30 @@ def write_program(program):
         def infer_type_rec(outer, scope):
             if type(outer) == Token:
                 if outer.type == "IDENTIFIER":
-                    return scope.look_up(outer).typename
+                    return safe_type(scope.look_up(outer).typename, scope)
                 else:
                     raise SyntaxError("Unexptected token" + str(outer))
             elif type(outer) == tuple and outer[0] == "const":
                 potential_type = outer[1]
-                return potential_type
+                return safe_type(potential_type, scope)
             elif type(outer) == tuple and outer[0] == "call":
                     _, name, args = outer
                     # TODO(ed): This is easy, just make it not a tree.
-                    print(args)
-                    arg_types = [infer_type_and_typecheck(arg) for arg in args]
+                    arg_types = [infer_type_and_typecheck(arg, scope) for arg in args]
                     func = scope.look_up_func(name, arg_types)
-                    return func.returntype
+                    return safe_type(func.returntype, scope)
             elif type(outer) == list:
                 op, left, right = outer
                 left = infer_type_rec(left, scope)
                 right = infer_type_rec(right, scope)
+
                 if left == right: return left
-                if left[0] == "?" and right[0] != "?":
-                    known = left
-                    unknown = right
-                elif left[0] != "?" and right[0] == "?":
+                if left.is_known() and not right.is_known():
                     known = right
                     unknown = left
+                elif not left.is_known() and right.is_known():
+                    known = left
+                    unknown = right
                 else:
                     raise SyntaxError("Cannot infer type from expression, types don't match: " + str(expr))
                 ident = ["+", "-", "/", "*"]
@@ -157,7 +172,7 @@ def write_program(program):
                 if op in ident:
                     return known
                 elif op in boolean:
-                    return "B8"
+                    return safe_type("B8", scope)
                 # TODO(ed): This is a simple typecheck, needs to be more robust later,
                 # we need to check it's actually a numeric type and stuff like that.
             else:
@@ -204,22 +219,22 @@ def write_program(program):
         if is_if(statement):
             # TODO(ed): Fix typecheck for bools, also, add bools
             cmp_expr = write_expression(statement[1], scope)
-            print(infer_type_and_typecheck(statement[1], scope))
             block = write_block(statement[2], scope, level + 1)
             return f"if ({cmp_expr}) {block}"
 
         if is_definition(statement):
             if has_definition_type(statement):
                 name, typename, expr = statement[1]
-                typename = write_type(typename, scope)
+                typename = safe_type(typename, scope)
+                translatedtype = write_type(typename)
                 expr = write_expression(expr, scope)
             else:
                 name, expr = statement[1]
                 typename = infer_type_and_typecheck(expr, scope)
-                typename = write_type(typename, scope)
+                translatedtype = write_type(typename)
                 expr = write_expression(expr, scope)
             scope.define(Variable(name, typename))
-            return f"{typename} {name} = {expr}"
+            return f"{translatedtype} {name} = {expr}"
 
         if is_assign(statement):
             name, expr = statement[1]
@@ -230,10 +245,10 @@ def write_program(program):
         error(statement, None)
         assert False, "Invalid statement!"
 
-    def write_type(typename, scope):
-        t = scope.look_up(typename)
-        if type(t) != Type:
-            error(f"{typename} is not a type", typename)
+    def write_type(t):
+        if type(t) is not Type:
+            error(f"{t} is not a type", t)
+            assert type(t) is Type, "Trying to write non type"
         return t.translate()
 
     def write_expression(expr, scope):
@@ -251,9 +266,8 @@ def write_program(program):
                     return value
                 if kind == "call":
                     _, name, args = expr
-                    # TODO(ed): Typecheck and arguments
-                    args = [rec_write_expression(arg) for arg in args]
-                    arg_types = [infer_type_and_typecheck(arg) for arg in args]
+                    arg_types = [infer_type_and_typecheck(arg, scope) for arg in args]
+                    args = [write_expression(arg, scope) for arg in args]
                     func = scope.look_up_func(name, arg_types)
                     return func.translate() + "(" + ", ".join(args) + ")"
 
@@ -276,6 +290,7 @@ def write_program(program):
         ("U32", 8, "uint32_t"),
         ("I64", 16, "int64_t"),
         ("U64", 16, "uint64_t"),
+        ("NUM", 0, "-"),
     ]
     for t in types:
         scope.define(Type(*t))
@@ -285,7 +300,7 @@ def write_program(program):
     for func in program:
         _, name, ret, args, _ = func
         ret = scope.look_up(ret)
-        args = [arg.typename for arg in args]
+        args = [scope.look_up(arg[1]) for arg in args]
         scope.define(Function(name, ret, args))
 
     body = "\n".join([write_func(func, scope) for func in program])

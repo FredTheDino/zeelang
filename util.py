@@ -41,6 +41,7 @@ class Function(object):
         self.name = name
         # TODO(ed): Verify this is defined.
         self.returntype = returntype
+        assert all(map(lambda x: type(x) == Type, argtypes)), "Not all args are types"
         self.argtypes = argtypes
         self.uid = UID_FUNC_COUNTER
         UID_FUNC_COUNTER += 1
@@ -51,9 +52,9 @@ class Function(object):
         # non-exported function it should not be manged.
         return name
 
-    def match(self, argtypes):
+    def match(self, argtypes, scope):
         """ Returns true if the argument and return type matches. """
-        return all(map(lambda a, b: a == b, zip(self.argtypes, argtypes)))
+        return all(map(lambda a: a[0] == a[1], zip(self.argtypes, argtypes)))
 
     def __str__(self):
         name, returntype, uid = self.name, self.returntype, self.uid
@@ -73,9 +74,16 @@ class Type(object):
         self.c_name = c_name
         UID_TYPE_COUNTER += 1
 
+    def is_known(self):
+        return self.size != 0
+
     def translate(self):
         name, uid = self.name, self.uid
+        assert self.is_known(), "Trying to translate unkown type"
         return f"ZEE_TYPE_{name}_{uid}"
+
+    def __eq__(self, other):
+        return self.uid == other.uid or self.is_known() or other.is_known()
 
     def __str__(self):
         name, size, uid = self.name, self.size, self.uid
@@ -96,6 +104,8 @@ class Scope(object):
         self.childern = []
 
     def define(self, var):
+        if type(var) == Variable:
+            assert type(var.typename) is Type, "Invalid type for variable"
         if var.name in self.scope:
             error("name \"", var.name,
                   "\" is allready defined in this scope")
@@ -111,19 +121,19 @@ class Scope(object):
             if res is not None:
                 return res
         if counter == 0:
-            error("name \"" + ident + "\" is not defined.", ident)
+            error("name \"" + str(ident) + "\" is not defined.", ident)
 
     def look_up_func(self, ident, args, counter=0):
-        if ident in self.scope and self.scope[ident].match(args):
+        if ident in self.scope and self.scope[ident].match(args, self):
             return self.scope[ident]
         if self.outer_scope is not None:
             res = self.outer_scope.look_up_func(ident, args, counter + 1)
             if res is not None:
                 return res
         if counter == 0:
-            error("func \"" + ident + "\"" +
-                  " is not defined with args: " + str(args) +
-                  ", and ret: " + str(ret), ident)
+            error("func \"" + str(ident) + "\"" +
+                  " is not defined with args: " + str(args)
+                  , ident)
 
     def show(self):
         def indent(block):
@@ -141,7 +151,7 @@ class Scope(object):
         output = []
         for name in self.scope:
             definition = self.scope[name]
-            if type(definition) == Type:
+            if type(definition) == Type and definition.is_known():
                 name = definition.translate()
                 c_name = definition.c_name
                 output.append(f"typedef {c_name} {name};\n")
