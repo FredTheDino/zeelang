@@ -111,8 +111,8 @@ def write_program(program):
         _, name, ret, args, statements = func
 
         inner_scope = Scope(scope)
-        for name, typename in args:
-            inner_scope.define(Variable(name, scope.look_up(typename)))
+        for argname, argtype in args:
+            inner_scope.define(Variable(argname, scope.look_up(argtype)))
 
         ret = safe_type(ret, inner_scope)
         retname = write_type(ret)
@@ -269,7 +269,8 @@ def write_program(program):
                     arg_types = [infer_type_and_typecheck(arg, scope) for arg in args]
                     args = [write_expression(arg, scope) for arg in args]
                     func = scope.look_up_func(name, arg_types)
-                    return func.translate() + "(" + ", ".join(args) + ")"
+                    func_string = func.translate() + "(" + ", ".join(args) + ")"
+                    return func_string
 
             elif expr.type == "IDENTIFIER":
                 return str(expr)

@@ -40,7 +40,9 @@ for target in targets:
         error(test["name"], "Failed to compile")
         failed.append(test)
     elif not ran_correctly:
-        error(test["name"], "Incorrect result")
+        exp = test["expected_return"]
+        got = test["return"]
+        error(test["name"], f"Incorrect result (expected {exp} got {got})")
         failed.append(test)
     else:
         ok(test["name"])

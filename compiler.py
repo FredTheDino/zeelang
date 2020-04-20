@@ -22,13 +22,14 @@ if __name__ == "__main__":
 
     source = parser.parse_file(path, debug)
 
+    stub = path.split(".zee")[0].split("/")[-1]
+    c_source = stub + ".c"
+    with open(c_source, "w") as f:
+        f.write(source)
+
     if testing:
         import pickle
-        stub = path.split(".zee")[0].split("/")[-1]
-        c_source = stub + ".c"
         program = stub + ".out"
-        with open(c_source, "w") as f:
-            f.write(source)
 
         test = {}
         test["name"] = stub

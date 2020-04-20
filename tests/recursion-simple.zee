@@ -1,7 +1,7 @@
-# Ret 3628800
+# Ret: 24
 
 main() I32 {
-    a I32 := 10;
+    a I32 := 4;
     return fac(a);
 }
 
