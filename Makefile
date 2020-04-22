@@ -9,7 +9,9 @@ test: $(OUTPUT)
 	@$(PY) tester.py
 
 clean:
-	@rm *.res
+	@rm -f *.res
+	@rm -f a.out
+	@rm -f *.c
 
 %.res: tests/%.zee $(SOURCE)
 	@$(PY) compiler.py --test $<
