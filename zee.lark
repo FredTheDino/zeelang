@@ -39,13 +39,16 @@ prim_expr: "(" expression ")" | IDENTIFIER | constant | call
 call: IDENTIFIER "(" call_args? ")"
 call_args: [expression ("," expression)*]
 
-constant: signed_number
-        | hex_number
-        | bin_number
+constant: SIGNED_NUMBER
+        | HEX_NUMBER
+        | BIN_NUMBER
+        | CHAR_STRING
 
-signed_number: /-?\d+(\.\d+)?([eE][+-]?\d+)?/
-hex_number: "0x" /[0-9ABCDEFabcdef_]+/
-bin_number: "0b" /[01_]+/
+SIGNED_NUMBER: /-?\d+(\.\d+)?([eE][+-]?\d+)?/
+HEX_NUMBER: "0x" /[0-9ABCDEFabcdef_]+/
+BIN_NUMBER: "0b" /[01_]+/
+
+CHAR_STRING: ESCAPED_STRING
 
 
 BINARY_OPERATOR: "+" | "-" | "*" | "/" | "%"
