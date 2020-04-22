@@ -7,7 +7,7 @@ def write_program(program):
         return (" " * (level * 4)) + string
 
     def write_func(func, scope):
-        assert func[0] == "func"
+        if func[0] != "func": return ""
         _, name, ret, args, statements = func
 
         inner_scope = Scope(scope)
@@ -84,7 +84,6 @@ def write_program(program):
         return " {\n" + write_statements(block[1], inner_scope, level + 1) + "}\n"
 
     def write_statement(statement, scope, level):
-
         def is_return(stmt):
             return stmt[0] == "return"
 
@@ -105,6 +104,10 @@ def write_program(program):
 
         def is_statements(statements):
             return type(statements) == list
+
+        def is_expression(statements):
+            return type(statements) == tuple and \
+                   statements[0] == "expression"
 
         if is_statements(statement):
             return write_statements(statement, scope, level)
@@ -141,6 +144,9 @@ def write_program(program):
             typename = infer_type_and_typecheck(expr, scope)
             expr = write_expression(expr, scope)
             return f"{name} = {expr}"
+
+        if is_expression(statement):
+            return write_expression(statement, scope)
 
         error(statement, None)
         assert False, "Invalid statement!"
@@ -191,18 +197,28 @@ def write_program(program):
         ("U32", 8, "uint32_t"),
         ("I64", 16, "int64_t"),
         ("U64", 16, "uint64_t"),
+        ("STR", 16, "char *"),
         ("NUM", 0, "-"),
     ]
     for t in types:
         scope.define(Type(*t))
 
-    preamble = "#include <stdint.h>\n"
+    headers = [
+        "stdint.h",
+    ]
 
     for func in program:
-        _, name, ret, args, _ = func
+        if func[0] != "c_include": continue
+        headers.append(func[1])
+
+    preamble = "\n".join([f"#include <{header}>" for header in headers]) + "\n"
+
+    for func in program:
+        if func[0] not in ["func", "c_func"]: continue
+        kind, name, ret, args, _ = func
         ret = scope.look_up(ret)
         args = [scope.look_up(arg[1]) for arg in args]
-        scope.define(Function(name, ret, args))
+        scope.define(Function(name, ret, args, kind == "func"))
 
     body = "\n".join([write_func(func, scope) for func in program])
     preamble += scope.write_types()

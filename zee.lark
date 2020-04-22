@@ -1,6 +1,12 @@
 program: _global_statement+
 
 _global_statement: function
+                 | c_include
+                 | c_func
+
+c_include: "!import" FILE
+FILE: /.+/
+c_func: "!" IDENTIFIER "(" func_args ")" TYPE
 
 function: IDENTIFIER "(" func_args ")" TYPE block
 
@@ -65,6 +71,5 @@ COMMENT: "#" /[^\n]/*
 %ignore COMMENT
 
 %import common.ESCAPED_STRING
-%import common.SIGNED_NUMBER
 %import common.WS
 %ignore WS

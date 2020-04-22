@@ -3,9 +3,12 @@ from lark import Transformer, Token, Tree
 class OptimusPrime(Transformer):
 
     # Expression parsing
-    def signed_number(self, num):
+    def SIGNED_NUMBER(SELF, num):
         as_num = int(num[0])
         return "NUM", as_num
+
+    def CHAR_STRING(SELF, string):
+        return "STR", string
 
     def constant(self, const):
         typename, value = const[0]
@@ -61,6 +64,27 @@ class OptimusPrime(Transformer):
 
     def type(self, typename):
         return typename[0]
+
+    def c_include(self, include):
+        return "c_include", include[0]
+
+    def c_func(self, func):
+        for tree in func:
+            if type(tree) == Tree:
+                if tree.data == "func_args":
+                    args = tree.children
+                else:
+                    assert False, "Invalid function!"
+            elif type(tree) == Token:
+                if tree.type == "IDENTIFIER":
+                    name = tree
+                elif tree.type == "TYPE":
+                    ret = tree
+                else:
+                    assert False, "Invalid function!"
+            else:
+                assert False, "Invalid function!"
+        return "c_func", name, ret, args, None
 
     # Functions
     def func_arg(self, arg):

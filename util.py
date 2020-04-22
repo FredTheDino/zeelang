@@ -36,7 +36,7 @@ class Variable(object):
 
 class Function(object):
 
-    def __init__(self, name, returntype, argtypes):
+    def __init__(self, name, returntype, argtypes, is_func):
         global UID_FUNC_COUNTER
         self.name = name
         # TODO(ed): Verify this is defined.
@@ -44,6 +44,7 @@ class Function(object):
         assert all(map(lambda x: type(x) == Type, argtypes)), "Not all args are types"
         self.argtypes = argtypes
         self.uid = UID_FUNC_COUNTER
+        self.is_func = is_func;
         UID_FUNC_COUNTER += 1
 
     def translate(self):
@@ -162,6 +163,7 @@ class Scope(object):
         for name in self.scope:
             definition = self.scope[name]
             if type(definition) == Function:
+                if not definition.is_func: continue
                 ret = definition.returntype.translate()
                 name = definition.translate()
                 args = definition.argtypes

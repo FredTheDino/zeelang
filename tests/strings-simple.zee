@@ -1,0 +1,10 @@
+# Ret: 6
+
+!import stdio.h
+
+!printf(str STR) I32
+
+main() I32 {
+    str := "Hello!";
+    return printf(str);
+}
